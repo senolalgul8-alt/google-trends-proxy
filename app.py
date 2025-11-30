@@ -1,73 +1,56 @@
-
-from flask import Flask, request, Response, jsonify
+from flask import Flask, request, jsonify
 import requests
-import json
 
 app = Flask(__name__)
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0 Safari/537.36"
-    )
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
-
 @app.route("/")
-def index():
+def home():
     return jsonify({
         "status": "ok",
-        "message": "Google Trends proxy is running. Use /trends?geo=US or /trends?q=bitcoin&geo=US"
+        "message": "Google Trends Proxy is running. Use /daily?geo=US or /search?q=bitcoin&geo=US"
     })
 
-
-@app.route("/trends")
-def trends():
+@app.route("/daily")
+def daily():
     geo = request.args.get("geo", "US")
+    url = f"https://trends.google.com/trends/api/dailytrends?hl=en-US&tz=-480&geo={geo}"
+
+    r = requests.get(url, headers=HEADERS)
+    text = r.text.replace(")]}',", "").strip()
+
+    return app.response_class(
+        response=text,
+        status=200,
+        mimetype='application/json'
+    )
+
+@app.route("/search")
+def search():
     q = request.args.get("q")
+    geo = request.args.get("geo", "US")
+    
+    if not q:
+        return jsonify({"error": "Missing parameter: q"})
 
-    try:
-        if q:
-            # Keyword-based explore endpoint
-            req_obj = {
-                "comparisonItem": [{
-                    "keyword": q,
-                    "geo": geo,
-                    "time": "now 7-d"
-                }],
-                "category": 0,
-                "property": ""
-            }
+    url = (
+        f"https://trends.google.com/trends/api/explore?"
+        f"hl=en-US&tz=-480&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22{q}%22,"
+        f"%22geo%22:%22{geo}%22,%22time%22:%22today%2012-m%22%7D%5D,%22category%22:0,"
+        f"%22property%22:%22%22%7D"
+    )
 
-            params = {
-                "hl": "en-US",
-                "tz": "0",
-                "req": json.dumps(req_obj, separators=(",", ":")),
-                "property": ""
-            }
-            url = "https://trends.google.com/trends/api/explore"
-        else:
-            # Daily trending searches endpoint
-            params = {
-                "hl": "en-US",
-                "tz": "0",
-                "geo": geo
-            }
-            url = "https://trends.google.com/trends/api/dailytrends"
+    r = requests.get(url, headers=HEADERS)
+    text = r.text.replace(")]}',", "").strip()
 
-        g_res = requests.get(url, params=params, headers=HEADERS, timeout=15)
-        text = g_res.text.lstrip(")]}',\n ")
-
-        resp = Response(text, status=g_res.status_code, mimetype="application/json")
-        resp.headers["Access-Control-Allow-Origin"] = "*"
-        return resp
-
-    except Exception as e:
-        err = {"error": str(e)}
-        return jsonify(err), 500
-
+    return app.response_class(
+        response=text,
+        status=200,
+        mimetype='application/json'
+    )
 
 if __name__ == "__main__":
-    # For local testing; Render will use gunicorn
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=10000)
