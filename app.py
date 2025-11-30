@@ -32,7 +32,7 @@ def daily():
 def search():
     q = request.args.get("q")
     geo = request.args.get("geo", "US")
-    
+
     if not q:
         return jsonify({"error": "Missing parameter: q"})
 
